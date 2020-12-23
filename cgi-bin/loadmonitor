@@ -1,0 +1,275 @@
+#!/bin/bash
+
+echo -e "ContentType: text/html\n\n";
+
+if [ "$REMOTE_ADDR" != '127.0.0.1' ]
+	then
+		exit 1;
+fi
+
+movies_hash='/usr/lib/moviesy/movies_hash.list';
+series_hash='/usr/lib/moviesy/series_hash.list';
+movie_rate="2";
+episodic_rate="1";
+free_space_percentage="";
+
+sessions_dir='/var/www/sessions';
+
+count="0";
+until ([ "$(pwd)" == "$sessions_dir" ] || [ "$count" -gt "9" ])
+	do
+		cd "$sessions_dir";
+		if [ "$(pwd)" != "$sessions_dir" ]
+			then
+				sleep 1;
+			else
+				continue;
+		fi
+		count=$((++count));
+done
+
+if [ "$(pwd)" != "$sessions_dir" ]
+	then
+		echo 'error: # loadmonitor # couldnt navigate to '"$sessions_dir" && exit 1;
+fi
+
+session=$(sed -E 's/^session=([^$&;]+)/\1/gi' <<< "$QUERY_STRING");
+
+if ( [ -z "$session" ] || [ ! -e "/var/www/sessions/$session" ] || [ ! -e "/var/www/attached/$session" ] )
+	then
+echo '<!DOCTYPE html>';
+echo '<html>';
+echo '<head>';
+echo '	<link rel="shortcut icon" href="http://adm.in/img/favicon.ico">';
+echo '	<link rel="stylesheet" type="text/css" href="http://adm.in/css/admin.css">';
+echo '	<title>Load Monitor '"$session"'</title>';
+echo '</head>';
+echo '<body style="overflow-y: scroll; display: grid; padding: auto;">';
+echo '		<center><span style="color: #c34; font-size: 50px; font-weight: lighter;">Error: &nbsp;&nbsp;</span><span style="color: #aaa; font-size: 50px; font-weight: lighter;">session removed, or not attached yet, or assigned to a non existent device</span></center>';
+echo '</body>';
+echo '</html>';		
+		#echo 'error: # loadmonitor # couldnt extract session or session not existent or not attached or attached to a non existent block'
+		exit 2;
+fi
+
+device="$(cat "/var/www/attached/$session")";
+device_size="$(df -h --output=size "$device" | egrep -ve '^ Size$' | tail -n 1)";
+device_freespace="$(df -h --output=avail "$device" | egrep -ve '^ Size$' | tail -n 1)";
+device_size_nh="$(df --output=size "$device" | egrep -ve '^ Size$' | tail -n 1 | egrep -oe '[0-9]+')";
+device_freespace_nh="$(df --output=avail "$device" | egrep -ve '^ Size$' | tail -n 1 | egrep -oe '[0-9]+')";
+free_space_percentage="$((device_freespace_nh*100/device_size_nh))";
+device_mountpoint="$(lsblk -o MOUNTPOINT "$device" | egrep -ve '^(MOUNTPOINT|)$')";
+
+running_sum="0";
+
+if ([ -e "/var/www/loaded/$session" ] && [ ! -z "/var/www/loaded/$session" ])
+	then
+		while read line
+			do
+				if ( grep -q "$line" "$movies_hash" )
+					then
+						running_sum=$((running_sum+movie_rate));
+				fi
+
+				if ( grep -q "$line" "$series_hash" )
+					then
+						running_sum=$((running_sum+episodic_rate));
+				fi
+		done < "/var/www/loaded/$session"
+
+fi
+
+echo '<!DOCTYPE html>';
+echo '<html>';
+echo '<head>';
+echo '		<meta http-equiv="Refresh" content="15; url=http://adm.in/cgi-bin/loadmonitor?session='"$session"'"/>';
+echo '	<link rel="shortcut icon" href="http://adm.in/img/favicon.ico">';
+echo '	<link rel="stylesheet" type="text/css" href="http://adm.in/css/admin.css">';
+echo '	<title>Load Monitor '"$session"'</title>';
+echo '</head>';
+echo '<body style="overflow-y: scroll;">';
+echo '	<div class="container">';
+echo '		<div class="left-col">';
+echo '			<div class="flash-pad">';
+echo '				<a href="http://adm.in/cgi-bin/emergency_stop?session='"$session"'">';
+echo '					<img class="flash-drive" height="200px" src="http://adm.in/img/flash-small.png">';
+echo '					<span class="running-sum">'"$running_sum"'</span>';
+echo '				</a>';
+echo '			</div>';
+echo '			<div>';
+echo '				<div class="flash-pad">';
+
+if [ "$free_space_percentage" -gt "10" ]
+	then
+echo '					<div class="pie-chart">';
+	else
+		if [ "$free_space_percentage" -le "10" ] && [ "$free_space_percentage" -ge "1" ] 
+			then
+echo '					<div class="pie-chart-filling">';
+			else
+				if [ "$free_space_percentage" -lt "1" ]
+					then
+echo '					<div class="pie-chart-full">';
+				fi
+
+		fi
+fi
+
+if [ -z "$free_space_percentage" ]
+	then
+echo '					<div class="pie-chart">';
+	fi
+
+echo '						<div class="space">';
+
+if [ "$free_space_percentage" -gt "10" ]
+	then
+echo '							<u><center>'"$device_freespace"'</center></u>';
+echo '							<center style="color: #eee;e">'"$device_size"'</center>';
+	else
+		if [ "$free_space_percentage" -le "10" ] && [ "$free_space_percentage" -ge "1" ] 
+			then
+echo '							<u><center>'"$device_freespace"'</center></u>';
+echo '							<center style="color: #eee;e">'"$device_size"'</center>';
+			else
+				if [ "$free_space_percentage" -lt "1" ]
+					then
+echo '							<u><center>'"FULL"'</center></u>';
+echo '							<center style="color: #eee;e">'"$device_size"'</center>';
+				fi
+		fi
+fi
+
+if [ -z "$free_space_percentage" ]
+	then
+echo '							<u><center>'"$device_freespace"'</center></u>';
+echo '							<center style="color: #eee;e">'"$device_size"'</center>';
+	fi
+
+
+
+echo '						</div>';
+echo '					</div>';
+echo '				</div>';
+echo '			</div>';
+echo '		</div>';
+echo '		<div class="right-col">';
+
+while read hashline
+	do
+		entry_name="";
+		entry_path="";
+		entry_class="";
+		entry_status="";
+		percentage="";
+
+		if ( egrep -qe "^$hashline .+$" "$movies_hash" )
+			then
+				entry_class="movie";
+				line=$(egrep -oe "^$hashline .+$" "$movies_hash");
+				entry_path=$(sed -E 's/^([0-9a-z]{32}) (.+)$/\2/g' <<< "$line");
+				entry_name=$(sed -E 's/^.+\/([^\/]+$)/\1/g' <<< "$entry_path");
+		fi
+
+		if ( egrep -qe "^$hashline .+$" "$series_hash" )
+			then
+				entry_class="series";
+				line=$(egrep -oe "^$hashline .+$" "$series_hash");
+				entry_path=$(sed -E 's/^([0-9a-z]{32}) (.+)$/\2/g' <<< "$line");
+				entry_name=$(sed -E 's/^.+\/([^\/]+$)/\1/g' <<< "$entry_path");
+		fi
+
+
+		if [ ! -e "$entry_path" ]
+			then
+				continue;
+		fi
+
+		if [ -z "$entry_name" ]
+			then
+				entry_name="invalid hash $hashline";
+		fi
+
+		if [ -z "$entry_class" ]
+			then
+				entry_class="no-class";
+		fi
+
+		entry_searchable_name=$(sed -E 's/([^a-z0-9 \t\.-])/\\\1/gi' <<< "$entry_name")
+
+		found=$(find "$device_mountpoint/mov.ez" -type f -name "$entry_searchable_name" 2> /dev/null);
+
+		if [ ! -d "$device_mountpoint/mov.ez" ]
+			then
+				entry_status="0";
+		fi
+
+		if [ -z "$found" ]
+			then
+				entry_status="0";
+		fi
+
+		if [ ! -z "$found" ]
+			then
+				original_size=$(du "$entry_path" | egrep -oe '^[0-9]+');
+				loaded_size=$(du "$found" | egrep -oe '^[0-9]+');
+				delta=$(bc <<< "$original_size - $loaded_size" );
+
+				if [ "$delta" -lt "10" ]
+					then
+						entry_status="100"
+				fi
+				if [ "$delta" -ge "10" ]
+					then
+						percentage=$(bc <<< "($loaded_size*100/$original_size)");
+						entry_status="50"
+				fi
+		fi
+
+echo '			<div class="row">';
+echo '				<div class="row-container">';
+echo '					<div class="delete-entry">';
+echo '						';
+echo '					</div>';
+echo '					<div class="entry-name">';
+echo '						<h3>';
+echo '							<span class="entry-name-text">'"$entry_name"'</span>';
+echo '						</h3>';
+echo '					</div>';
+echo '					<div class="entry-class">';
+		
+		if [ "$entry_class" == "series" ]
+			then
+echo '						<img style="margin: 5px;" height="40px" src="http://adm.in/img/tv-100.png">';
+		fi
+		if [ "$entry_class" == "movie" ]
+			then
+echo '						<img style="margin: 5px;" height="40px" src="http://adm.in/img/movies-100.png">';
+		fi
+echo '					</div>';
+echo '					<div class="entry-status">';
+
+		if [ "$entry_status" == "0" ]
+			then
+echo '						<div class="entry-red">';
+		fi
+		if [ "$entry_status" == "50" ]
+			then
+echo '						<div class="entry-yellow"><span style="display: grid; margin: auto;">'"$percentage"'%</span>';
+		fi
+		if [ "$entry_status" == "100" ]
+			then
+echo '						<div class="entry-green">';
+		fi
+
+echo '						</div>';
+echo '					</div>';
+echo '				</div>';
+echo '			</div>';
+
+done < "$session"
+
+echo '		</div>';
+echo '	</div>';
+echo '</body>';
+echo '</html>';

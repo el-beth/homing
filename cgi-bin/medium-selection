@@ -1,0 +1,37 @@
+#!/bin/bash
+
+printf "Content-type: text/html\n\n"
+reload='<html><head><meta http-equiv="Refresh" content="0.1; url=http://mov.ez"/></head><body></body></html>';
+session=""
+if ( egrep -qie '.*session=([^$&;]+).*' <<< "$QUERY_STRING" )
+	then
+		session="$(sed -E 's/.*session=([^$&;]+).*/\1/g' <<< "$QUERY_STRING")"
+	else
+		echo 'error: # req_approval # script called without session';
+		exit 1;
+fi
+
+if [ ! -e "/var/www/sessions/$session" ]
+	then
+		echo "$reload";
+		exit;
+fi
+
+echo '<!DOCTYPE html>';
+echo '<html>';
+echo '<head>';
+echo '<link rel="shortcut icon" href="http://192.168.0.200/img/favicon.ico">';
+echo '	<link rel="stylesheet" type="text/css" href="http://mov.ez/css/main.css">';
+echo '	<link rel="stylesheet" type="text/css" href="http://mov.ez/css/series-specific.css">';
+echo '	<title>Medium Selection</title>';
+echo '</head>';
+echo '<body>';
+echo '	<div class="landing gapped">';
+echo '		<center><div class="prompt_container neu_passive_inset" style="color: #828282; margin-bottom: 60px;"><center><h1>Storage medium?</h1></center></div></center>';
+echo '		<div class="questions">';
+echo '			<a href="http://mov.ez/cgi-bin/moviesy_feature/main.sh?page=1&session='"$session"'"><div style="color: #8dc19e;"class="neu-inset-circle-250px neu_inset"><img src="http://mov.ez/img/flash-small.png"></div></a>';
+echo '			<a href="http://mov.ez/cgi-bin/req_approval?session='"$session"'"><div style="color: #e49688;"class="neu-inset-circle-250px neu_inset"><img src="http://mov.ez/img/smartphone-small.png"></div></a>';
+echo '		</div>';
+echo '	</div>';
+echo '</body>';
+echo '</html>';

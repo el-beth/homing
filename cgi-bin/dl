@@ -1,0 +1,127 @@
+#!/bin/bash
+
+
+reload='Content-type: text/html\n\n<html><head><meta http-equiv="Refresh" content="0.1; url=http://mov.ez"/></head><body></body></html>';
+
+movies_hash="/usr/lib/moviesy/movies_hash.list";
+series_hash="/usr/lib/moviesy/series_hash.list";
+
+dl_temp_dir="/var/www/html/dl";
+
+session="";
+hash=" ";
+
+if ( egrep -qe '^([0-9a-z]{32})\&session=([^$;&]+)$' <<< "$QUERY_STRING" )
+	then
+		hash="$(sed -E 's/^([0-9a-z]{32})\&session=([^$;&]+)$/\1/g' <<< "$QUERY_STRING")";
+		session="$(sed -E 's/^([0-9a-z]{32})\&session=([^$;&]+)$/\2/g' <<< "$QUERY_STRING")";
+	else
+		echo 'error: # dl # malformed url used for call';
+		exit 1;
+fi
+
+if [ ! -d "$dl_temp_dir" ]
+	then
+		echo 'error: # dl #$@dl_temp_dir "'"$dl_temp_dir"'" not extant' && exit;
+fi
+
+if ( [ ! -e "$movies_hash" ] && [ ! -e "$series_hash" ] )
+	then
+		echo "error: # dl # movies_hash and series_hash don't exist" && exit;
+fi
+
+if [ ! -e "$movies_hash" ]
+	then
+		echo "error: # dl # movies_hash doesn't exist" && exit;
+	elif [ ! -e "$series_hash" ]
+		then
+			echo "error: # dl # series_hash doesn't exist" && exit;
+fi
+
+############### all session verification should be done before this point
+
+if [ ! -d "$dl_temp_dir/$session" ]
+	then
+		mkdir "$dl_temp_dir/$session";
+fi
+
+if [ ! -d "$dl_temp_dir/$session" ]
+	then
+		echo "error: # dl # can't create session" && exit;
+fi
+
+if [ ! -e "$dl_temp_dir/$session/$hash" ]
+	then
+		touch "$dl_temp_dir/$session/$hash";
+fi
+
+if [ ! -e "$dl_temp_dir/$session/$hash" ]
+	then
+		echo "error: # dl # can't create dl for $hash" && exit;
+fi
+
+if ( egrep -qe "^$hash .+$" "$movies_hash" )
+	then
+		movie_match_line=$(egrep -oe "^$hash .+$" "$movies_hash");
+		movie_path=$(sed -E 's/^[0-9a-z]{32} (.+)$/\1/g' <<< "$movie_match_line");
+		movie_name=$(sed -E 's/^.+\/([^\/]+)$/\1/g' <<< "$movie_path");
+		extension=$(sed -E 's/^.*\.([^\.]+)$/\1/g' <<< "$movie_name");
+		if ( [ -z "$movie_path" ] || [ ! -e "$movie_path" ] )
+			then
+				echo 'error: # dl # the series_path extracted is invalid or file doesnt currently exist' && exit;
+		fi
+
+		if [ ! -L "$dl_temp_dir/$session/$hash" ]
+			then
+				rm "$dl_temp_dir/$session/$hash" && ln -s "$movie_path" "$dl_temp_dir/$session/$movie_name";
+		fi
+		if ( ! egrep -qe "^$hash$" "/var/www/sessions/$session" )
+			then
+				echo "$hash" >> "/var/www/sessions/$session";
+		fi
+
+		echo 'Content-Type: text/html';
+		echo -e '\n\n'
+		echo '<html>';
+		echo '	<head>';
+		#echo '		<meta http-equiv="Refresh" content="0.1; url=http://mov.ez/dl/'"$session/$series_name"'"/>';
+		echo '	</head>';
+		echo '	<body style="overflow: hidden; padding: 0px; margin: 0px;">';
+		echo '		<a href="http://mov.ez/dl/'"$session/$movie_name"'" download><img style="display: grid; margin: auto; margin-top: 10px;" height="49px" src="http://mov.ez/img/download.png"></a>'
+		echo '	</body>';
+		echo '</html>';
+	elif ( egrep -qe "^$hash .+$" "$series_hash" )
+		then
+			series_match_line=$(egrep -oe "^$hash .+$" "$series_hash");
+			series_path=$(sed -E 's/^[0-9a-z]{32} (.+)$/\1/g' <<< "$series_match_line");
+			series_name=$(sed -E 's/^.+\/([^\/]+)$/\1/g' <<< "$series_path");
+			extension=$(sed -E 's/^.*\.([^\.]+)$/\1/g' <<< "$series_name");
+			if ( [ -z "$series_path" ] || [ ! -e "$series_path" ] )
+				then
+					echo 'error: # dl # the series_path extracted is invalid or file doesnt currently exist' && exit;
+			fi
+
+			if [ ! -L "$dl_temp_dir/$session/$hash" ]
+				then
+					rm "$dl_temp_dir/$session/$hash" && ln -s "$series_path" "$dl_temp_dir/$session/$series_name";
+			fi
+			if ( ! egrep -qe "^$hash$" "/var/www/sessions/$session" )
+				then
+					echo "$hash" >> "/var/www/sessions/$session";
+			fi
+			echo 'Content-Type: text/html';
+			echo -e '\n\n'
+			echo '<html>';
+			echo '	<head>';
+			#echo '		<meta http-equiv="Refresh" content="0.1; url=http://mov.ez/dl/'"$session/$series_name"'"/>';
+			echo '	</head>';
+			echo '	<body style="overflow: hidden; padding: 0px; margin: 0px;">';
+			echo '		<a href="http://mov.ez/dl/'"$session/$series_name"'" download><img height="49px" src="http://mov.ez/img/download.png"></a>'
+			echo '	</body>';
+			echo '</html>';
+			
+	else
+		echo "error: # dl # hash invalid";
+		rm "$dl_temp_dir/$session/$hash" && exit;
+fi
+

@@ -1,0 +1,86 @@
+#!/bin/bash
+
+# this will be called with a session name
+
+session_dir='/var/www/sessions';
+reload='<html><head><meta http-equiv="Refresh" content="0.1; url=http://mov.ez"/></head><body></body></html>';
+
+printf "Content-type: text/html\n\n";
+
+i="0";
+
+if [ -d "$session_dir" ]
+	then
+
+		until ([ "$(pwd)" == "$session_dir" ] || [ "$i" -gt "10" ])
+			do
+				cd "$session_dir";
+				sleep 1;
+				i=$((++i));
+		done
+
+		if [ "$(pwd)" != "$session_dir" ]
+			then
+				echo "error: # login # couldn't navigate to session directory";
+				exit 2;
+		fi
+	else
+		echo "error: # login # session directory doesn't exist";
+		exit 1;
+fi
+
+calling_arg="$QUERY_STRING";
+
+if ( ! egrep -iqe '^session=[A-Z0-9 _\.]{3,15}' <<< "$calling_arg" )
+	then
+		echo "$reload" && exit;
+		exit;
+fi	
+
+session=$(sed -E 's/^session=//gi' <<< "$calling_arg");
+
+if [ -z "$session" ]
+	then
+		echo "$reload";
+		exit;
+fi
+
+if ( egrep -iqe '[^a-z0-9]' <<< "$session" )
+	then
+		echo "$reload" && exit;
+fi
+
+session=$(tr A-Z a-z <<< "$session");
+
+session_file="/var/www/sessions/$session";
+
+if ( [ ! -e "$session_file" ] && [ ! -e "/var/www/sessions_pending/$session" ] )
+	then
+		touch "$session_file";
+		until [ -e "$session_file" ]
+			do
+				sleep .5;
+		done
+	elif [ -e "/var/www/sessions_pending/$session" ]
+		then
+			echo '<html>';
+			echo '	<head>';
+			echo '		<meta http-equiv="Refresh" content="0.1; url=http://mov.ez/cgi-bin/req_approval?session='"$session"'"/>';
+			echo '	</head>';
+			echo '	<body>';
+			echo '	</body>';
+			echo '</html>';
+			exit;
+	elif [ -e "$session_file" ]
+		then
+			echo "$reload" && exit;
+fi
+
+if [ ! -e "$session_file" ]
+	then
+		echo "$reload";
+		exit;
+fi
+
+echo '<html><head><meta http-equiv="Refresh" content="0.1; url=http://mov.ez/cgi-bin/medium-selection?session='"$session"'"/></head><body></body></html>';
+exit;

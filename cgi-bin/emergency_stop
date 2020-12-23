@@ -1,0 +1,74 @@
+#!/bin/bash
+
+session=$(sed -E 's/^session=([^$&;]+)/\1/gi' <<< "$QUERY_STRING");
+
+if [ "$REMOTE_ADDR" != "127.0.0.1" ]
+	then
+		echo "error: # emergency-stop # unauthorised attempt to stop a session carried out by $REMOTE_ADDR"
+fi
+
+session_file="/var/www/sessions/$session";
+session_pending="/var/www/sessions_pending/$session";
+session_approved="/var/www/sessions_approved/$session";
+session_dls="/var/www/html/dl/$session";
+session_attached="/var/www/attached/$session";
+session_loaded="/var/www/loaded/$session";
+session_loading="/var/www/loading/$session";
+device="";
+
+if [ -e "$session_attached" ]
+	then
+		device=$(cat "$session_attached");
+		echo "" > "$session_attached"
+		users_of_device=$(lsof -Fc "$device" | egrep -oe '^p[0-9]+$' | sed -E 's/^p//g' 2> /dev/null);
+		if [ ! -z "$users_of_device" ]
+			then
+				while read pid_of_user
+					do
+						if [ -z "$pid_of_user" ]
+							then
+								continue;
+						fi
+						parent_pid=$(ps --pid "$pid_of_user" -o ppid,pid,cmd | egrep -oe '^[0-9]+ *[0-9]+ * cp .+$' | egrep -oe '^[0-9]+')
+						kill "$parent_pid";
+						sleep .5;
+						kill "$pid_of_user";
+				done <<< "$users_of_device"
+		fi
+
+		if [ -z "$users_of_device" ]
+			then
+				sleep 5;
+				users_of_device=$(lsof -Fc "$device" | egrep -oe '^p[0-9]+$' | sed -E 's/^p//g' 2> /dev/null);
+				if [ ! -z "$users_of_device" ]
+					then
+						while read pid_of_user
+							do
+								if [ -z "$pid_of_user" ]
+									then
+										continue;
+								fi
+								parent_pid=$(ps --pid "$pid_of_user" -o ppid,pid,cmd | egrep -oe '^[0-9]+ *[0-9]+ * cp .+$' | egrep -oe '^[0-9]+')
+								kill "$parent_pid";
+								sleep .5;
+								kill "$pid_of_user";
+						done <<< "$users_of_device"
+				fi
+		fi
+fi
+
+if [ -e "$session_loading" ]
+	then
+		rm "$session_loading";
+fi
+
+echo 'Content-type: text/html';
+echo -e "\n\n";
+
+echo '<html>';
+echo '	<head>';
+echo '		<meta http-equiv="Refresh" content="0.1; url=http://adm.in/cgi-bin/loadmonitor?session='"$session"'"/>';
+echo '	</head>';
+echo '	<body>';
+echo '	</body>';
+echo '</html>';

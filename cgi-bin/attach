@@ -1,0 +1,74 @@
+#!/bin/bash
+
+#session=dont&drive=/dev/sde1
+
+session="$(sed -E 's/.*session=([^\&]+)[\&]*.*/\1/g' <<< "$QUERY_STRING")";
+device="$(sed -E 's/.*drive=([^;&]+)/\1/g' <<< "$QUERY_STRING")";
+
+if ([ -z "$session" ] || [ -z "$device" ])
+	then
+		echo 'error: # attach # script called without session or device' && exit 1;
+fi
+
+if [ ! -e "/var/www/sessions/$session" ]
+	then
+		echo 'error: # attach # session non existent' && exit 2;
+fi
+
+if [ ! -b "$device" ]
+	then
+		echo 'error: # attach # device non existent' && exit 3;
+fi
+
+mountpoint=$(lsblk -o MOUNTPOINT "$device" | egrep -ve '^MOUNTPOINT$');
+
+if ( mountpoint "$mountpoint" &> /dev/null )
+	then
+		mountpoint="$mountpoint";
+	else
+		echo "error # attach # $mountpoint is not a mountpoint" && exit 4;
+fi
+
+count="0";
+until ([ "$(pwd)" == "$mountpoint" ] || [ "$count" -gt "10" ])
+	do
+		cd "$mountpoint"
+		if [ "$(pwd)" != "$mountpoint" ]
+			then
+				count=$((++count));
+				sleep 1;
+		fi
+done
+
+if [ "$(pwd)" != "$mountpoint" ]
+	then
+		echo "error: # attach # can't navigte to $mountpoint" && exit 5;
+fi
+
+if [ ! -e "/var/www/attached/$session" ]
+	then
+		touch "/var/www/attached/$session";
+		if [ ! -e "/var/www/attached/$session" ]
+			then
+				echo "error: # attach # couldn't create attachment file" && exit 6;
+		fi
+		echo "$device" > "/var/www/attached/$session";
+	else
+		if ([ -z "$(cat "/var/www/attached/$session")" ] || [ ! -b "$(cat "/var/www/attached/$session")" ] || [ "$(cat "/var/www/attached/$session")" == "$device" ])
+			then
+				echo "$device" > "/var/www/attached/$session";
+			else
+				exit 7;
+		fi
+fi
+
+echo 'Content-type: text/html';
+echo -e "\n\n";
+
+echo '<html>';
+echo '	<head>';
+echo '		<meta http-equiv="Refresh" content="0.1; url=http://adm.in/cgi-bin/loadmonitor?session='"$session"'"/>';
+echo '	</head>';
+echo '	<body>';
+echo '	</body>';
+echo '</html>';

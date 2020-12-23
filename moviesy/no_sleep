@@ -1,0 +1,10 @@
+#!/bin/bash
+
+while true
+	do
+		while read line
+			do
+				touch "$line/.no-sleep"
+		done < "/usr/lib/moviesy/media"
+		sleep 10;
+done

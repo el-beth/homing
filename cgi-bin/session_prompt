@@ -1,0 +1,6 @@
+#!/bin/bash
+
+printf "Content-type: text/html\n\n";
+session=$(sed -E 's/^session=(.+)$/\1/gi' <<< "$QUERY_STRING");
+
+echo '<!DOCTYPE html><html><head><link rel="stylesheet" type="text/css" href="http://mov.ez/css/main.css"><link rel="stylesheet" type="text/css" href="http://mov.ez/css/series-specific.css"><title>Session exists</title></head><body><div class="landing gapped"><div class="prompt_container" style="color: #828282;"><center><h1>Continue session?</h1></center></div><div class="questions"><a href="http://mov.ez/cgi-bin/moviesy_feature/main.sh?page=1&session='"$session"'"><div style="color: #8dc19e;"class="options neu"><h2>Yes</h2></div></a><a href="http://mov.ez/cgi-bin/reset?session='"$session"'"><div style="color: #e49688;"class="options neu"><h2>No</h2></div></a></div></div></body></html>'

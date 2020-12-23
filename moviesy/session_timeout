@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# this will monitor the components of /var/www/sessions and all those that are older than a preset age will get removed
+
+removal_age="7200"; # if older than this time -- in seconds session and corresponding permissions get annuled
+sessions_dir='/var/www/sessions';
+
+count="0";
+until ([ "$(pwd)" == "$sessions_dir" ] || [ "$count" -gt "10" ])
+	do
+		cd "$sessions_dir"
+		if [ "$(pwd)" != "$sessions_dir" ]
+			then
+				count=$((++count));
+				sleep 1;
+		fi
+done
+
+if [ "$(pwd)" != "$sessions_dir" ]
+	then
+		echo "error: # session_timeout # can't navigte to $sessions_dir" && exit 5;
+fi
+
+while true
+	do
+		for session in *;
+			do
+				if [ -f "$session" ]
+					then
+						time_now=$(date "+%s");
+						time_creation=$(ls -al --time-style=+%s "$session" | egrep -ioe "[0-9]+ $session" | egrep -oe '^[0-9]+');
+						age=$((time_now-time_creation));
+
+						if [ "$age" -ge "$removal_age" ]
+							then
+								firefox "http://adm.in/cgi-bin/remove-session?session=$session" || chromium "http://adm.in/cgi-bin/remove-session?session=$session";
+						fi
+				fi
+			
+				sleep 2;
+		done
+		sleep 60;
+done

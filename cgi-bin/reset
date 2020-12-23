@@ -1,0 +1,11 @@
+#!/bin/bash
+
+printf "Content-type: text/html\n\n";
+session=$(sed -E 's/^session=(.+)$/\1/gi' <<< "$QUERY_STRING");
+
+if [ -e "/var/www/sessions/$session" ]
+	then
+		rm "/var/www/sessions/$session" 2> /dev/null;
+fi
+
+echo '<html><head><meta http-equiv="Refresh" content="0.1; url=http://mov.ez/cgi-bin/moviesy_feature/main.sh?page=1&session='"$session"'"/></head><body></body></html>';

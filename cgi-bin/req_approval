@@ -1,0 +1,75 @@
+#!/bin/bash
+
+printf "Content-type: text/html\n\n";
+reload='<html><head><meta http-equiv="Refresh" content="0.1; url=http://mov.ez"/></head><body></body></html>';
+
+session="";
+
+if ( egrep -qie '.*session=([^$&;]+).*' <<< "$QUERY_STRING" )
+	then
+		session="$(sed -E 's/.*session=([^$&;]+).*/\1/g' <<< "$QUERY_STRING")"
+	else
+		echo 'error: # req_approval # script called without session';
+		exit 1;
+fi
+
+# avoiding working with approved sessions right off the bat
+
+if ( [ -e "/var/www/sessions/$session" ] && [ -e "/var/www/sessions_approved/$session" ] && [ ! -e "/var/www/sessions_pending/$session" ] )
+	then
+		echo '<html>';
+		echo '	<head>';
+		echo '		<meta http-equiv="Refresh" content="0.1; url=http://mov.ez/cgi-bin/moviesy_feature/main_dl.sh?page=1&session='"$session"'"/>';
+		echo '	</head>';
+		echo '	<body>';
+		echo '	</body>';
+		echo '</html>';
+		exit;
+	elif ( [ -e "/var/www/sessions/$session" ] && [ ! -e "/var/www/sessions_approved/$session" ] && [ ! -e "/var/www/sessions_pending/$session" ] )
+		then
+			# queue for approval
+			cp "/var/www/sessions/$session" "/var/www/sessions_pending";
+			echo "$REMOTE_ADDR" > "/var/www/sessions_pending/$session";
+			echo '<!DOCTYPE html>';
+			echo '<html>';
+			echo '	<head>';
+			echo '		<link rel="stylesheet" type="text/css" href="http://mov.ez/css/main.css">';
+			echo '		<link rel="stylesheet" type="text/css" href="http://mov.ez/css/series-specific.css">';
+			echo '		<title>Awaiting Approval</title>';
+			echo '	</head>';
+			echo '	<body>';
+			echo '		<div class="upper-box-container">';
+			echo '			<div class="neu-inset-circle-150px neu_passive_inset">';
+			echo '				<img src="http://mov.ez/img/smartphone-small.png" width="150px">';
+			echo '			</div>';
+			echo '			<div class="neu_passive_inset rounded-box">';
+			echo '				<h2 style="color: #5a5a5a;">AWAITING SESSION APPROVAL .. CONTACT ADMIN and REFRESH</h2>';
+			echo '			</div>		';
+			echo '		</div>';
+			echo '	</body>';
+			echo '</html>';
+			exit;
+	elif ( [ -e "/var/www/sessions/$session" ] && [ ! -e "/var/www/sessions_approved/$session" ] && [ -e "/var/www/sessions_pending/$session" ] )
+		then
+			# pending
+			echo '<!DOCTYPE html>';
+			echo '<html>';
+			echo '	<head>';
+			echo '		<link rel="stylesheet" type="text/css" href="http://mov.ez/css/main.css">';
+			echo '		<link rel="stylesheet" type="text/css" href="http://mov.ez/css/series-specific.css">';
+			echo '		<title>Awaiting Approval</title>';
+			echo '	</head>';
+			echo '	<body>';
+			echo '		<div class="upper-box-container">';
+			echo '			<div class="neu-inset-circle-150px neu_passive_inset">';
+			echo '				<img src="http://mov.ez/img/smartphone-small.png" width="150px">';
+			echo '			</div>';
+			echo '			<div class="neu_passive_inset rounded-box">';
+			echo '				<h2 style="color: #5a5a5a;">AWAITING SESSION APPROVAL .. CONTACT ADMIN and REFRESH</h2>';
+			echo '			</div>		';
+			echo '		</div>';
+			echo '	</body>';
+			echo '</html>';
+			exit;
+fi
+

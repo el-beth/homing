@@ -1,0 +1,180 @@
+#!/bin/bash
+
+if [ "$REMOTE_ADDR" != '127.0.0.1' ]
+	then
+		exit 1;
+fi
+
+movies_hash='/usr/lib/moviesy/movies_hash.list';
+series_hash='/usr/lib/moviesy/series_hash.list';
+movie_rate="2";
+episodic_rate="1";
+
+echo -e "Content-Type: TEXT/HTML\n\n";
+
+sessions_dir='/var/www/sessions';
+sessions_pending='/var/www/sessions_pending';
+sessions_authorised='/var/www/sessions_approved';
+
+count="0";
+until ([ "$(pwd)" == "$sessions_dir" ] || [ "$count" -gt "9" ])
+	do
+		cd "$sessions_dir";
+		if [ "$(pwd)" != "$sessions_dir" ]
+			then
+				sleep 1;
+			else
+				continue;
+		fi
+		count=$((++count));
+done
+
+if [ "$(pwd)" != "$sessions_dir" ]
+	then
+		echo 'error: # admin # couldnt navigate to '"$sessions_dir";
+fi
+
+echo '<!DOCTYPE html>';
+echo '<html>';
+echo '<head>';
+echo '<link rel="shortcut icon" href="http://adm.in/img/favicon.ico">'
+echo '	<link rel="stylesheet" type="text/css" href="http://adm.in/css/admin.css">';
+echo '	<title>Administration Dashboard</title>';
+echo '</head>';
+echo '<body>';
+echo '	<div class="cards-container">';
+
+for session_name in *
+	do
+		if [ -f "$session_name" ]
+			then
+				session_class="";
+				approved="";
+				session_movies="0";
+				session_episodes="0";
+				session_cash="0";
+				session_attached="false";
+
+				if ( [ -e "$sessions_authorised/$session_name" ] || [ -e "$sessions_pending/$session_name" ] )
+					then
+						session_class="direct";
+					else
+						session_class="flash";
+				fi
+
+				if [ "$session_class" == "direct" ]
+					then
+						if [ -e "$sessions_authorised/$session_name" ]
+							then
+								approved="true";
+							else
+								approved="false";
+						fi
+				fi
+
+				if [ "$session_class" == "flash" ]
+					then
+						if ([ -e "/var/www/attached/$session_name" ] && [ -b "$(cat "/var/www/attached/$session_name")" ])
+							then
+								session_attached="true";
+						fi
+				fi
+
+				while read session_hash
+					do
+						if ( egrep -qe "^$session_hash .+$" "$movies_hash" )
+							then
+								session_movies=$( bc <<< "$session_movies + 1");
+								session_cash=$( bc <<< "$session_cash + $movie_rate");
+						fi								
+
+						if ( egrep -qe "^$session_hash .+$" "$series_hash" )
+							then
+								session_episodes=$( bc <<< "$session_episodes + 1");
+								session_cash=$( bc <<< "$session_cash + $episodic_rate" )
+						fi
+										
+				done < "$session_name"
+
+				echo '		<div class="card">';
+				echo '			<div class="circle-inset">';
+
+				if [ "$session_class" == "direct" ]
+					then
+						if [ "$approved" == 'false' ]
+							then
+								echo '				<a href="http://adm.in/cgi-bin/approve?session='"$session_name"'">';
+								echo '					<div class="circle-red">';
+								echo '					</div>';
+								echo '				</a>';
+							else
+								echo '					<div class="circle-cyan">';
+								echo '					</div>';
+						fi
+				fi
+				if [ "$session_class" == "flash" ]
+					then
+						if [ "$session_attached" == "true" ]
+							then
+								echo '					<div class="circle-cyan">';
+								echo '					</div>';
+							else
+								echo '					<div class="circle-red">';
+								echo '					</div>';
+						fi
+				fi
+
+				echo '			</div>';
+				echo '			<div class="icon-and-cash">';
+				echo '				<div class="circle-icon">';
+				echo '					<div class="flash">';
+
+				if [ "$session_class" == "direct" ]
+					then
+						echo '						<img src="http://adm.in/img/smartphone-small.png">';
+					else
+						echo '						<img src="http://adm.in/img/flash-small.png">';
+				fi
+
+				echo '					</div>';
+				echo '					<div class="cash">';
+				echo '							'"$session_cash";
+				echo '						</div>';
+				echo '				</div>';
+				echo '			</div>';
+				echo '			<div class="name">';
+				echo '				<center>';
+				echo "					$session_name";
+				echo '				</center>';
+				echo '			</div>';
+				echo '				<div class="count">';
+				echo '					<div class="movie">';
+				echo '						<img src="http://adm.in/img/inset-round-bar.png" height="70">';
+				echo '						<img class="movie-icon" src="http://adm.in/img/movies-100.png">';
+				echo '						<h1 class="counts">';
+				echo "						$session_movies";
+				echo '						</h1>';
+				echo '					</div> ';
+				echo '					<div class="tv">';
+				echo '						<img src="http://adm.in/img/inset-round-bar.png" height="70">';
+				echo '						<img class="tv-icon" src="http://adm.in/img/tv-100.png">';
+				echo '						<h1 class="counts">';
+				echo "						$session_episodes";
+				echo '						</h1>';
+				echo '					</div>';
+				echo '				</div>';
+				echo '				<center>';
+				echo '					<div class="close-icon">';
+				echo '						<a href="http://adm.in/cgi-bin/remove-session?session='"$session_name"'">';
+				echo '							<img src="http://adm.in/img/close-icon-50px.png">';
+				echo '						</a>';
+				echo '					</div>';
+				echo '				</center>';
+				echo '		</div>';
+		fi
+done
+
+echo '	</div>';
+
+echo '</body>';
+echo '</html>';

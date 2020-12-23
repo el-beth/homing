@@ -1,0 +1,98 @@
+#!/bin/bash
+
+movie_hashes="/media/dimitri/end/faux_movies_hash";
+series_hashes='/usr/lib/moviesy/series-hash.list';
+
+printf "Content-type: text/html\n\n"
+
+device_path=$(sed -E 's/.*device=([^&?]+).*/\1/g' <<< "$QUERY_STRING");
+
+if ( [ -z "$device_path" ] || [ ! -b "$device_path" ] )
+	then
+		echo "error: # popup # $device_path not a valid \$device_path";
+		exit 1;
+fi
+
+drive_size="$(df -h --output=size "$device_path" | tail -n 1 | egrep -ioe '[0-9\.]+[KMGTPiB]+')";
+drive_label="$(df -h --output=avail "$device_path" | tail -n 1 | egrep -ioe '[0-9\.]+[KMGTPiB]+')";
+
+# these lines are before iteration of each session
+
+echo '<!DOCTYPE html>';
+echo '<html>';
+echo '<head>';
+echo '<link rel="shortcut icon" href="http://mov.ez/img/favicon.ico">';
+echo '	<link rel="stylesheet" type="text/css" href="http://mov.ez/css/main.css">';
+echo '	<link rel="stylesheet" type="text/css" href="http://mov.ez/css/series-specific.css">';
+echo '	<title>Session Attacher</title>';
+echo '</head>';
+echo '<body>';
+echo '	<div class="upper-box-container">';
+echo '		<div class="neu-inset-circle-150px neu_passive_inset">';
+echo '			<img width="150px" src="http://mov.ez/img/flash-small.png">';
+echo '		</div>';
+echo '		<div class="neu_passive_inset rounded-box">';
+echo '			<h2 style="color: #5a5a5a;">QUEUE SELECTION FOR DRIVE: '"$device_path"'</h2></br>';
+echo '			<div>';
+echo '				<div class="neu_passive">';
+echo '					<h2 style="color: #5a5a5a;">SIZE: <span style="color: #1ed0ea;">'"$drive_size"'</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; AVAILABEL SPACE: <span style="color: #1ed0ea;">'"$drive_label"'</span></h2>';
+echo '				</div>';
+echo '			</div>';
+echo '		</div>		';
+echo '	</div>';
+
+# iterations
+
+until [ "$(pwd)" == '/var/www/sessions' ]
+	do
+		cd '/var/www/sessions';
+done
+
+if [ -z "$(ls)" ]
+	then
+		echo '		<div class="sessions rounded-box neu_inset">';
+		echo '			<div class="session-name">';
+		echo '				<h2>Error: no active sessions</h2>';
+		echo '			</div>';
+		echo '	<div style="height: 100px;">';
+		echo '		<!--empty spacer-->';
+		echo '	</div>';
+		echo '</body>';
+		echo '</html>';
+		exit 2;
+fi
+
+for session_iterant in *;
+	do
+		session_iterant_movies="0";
+		session_iterant_episodes="0";
+		while read session_line
+			do
+				if ( grep -q "$session_line" "$movie_hashes" )
+					then
+						session_iterant_movies=$((++session_iterant_movies));
+					else
+						session_iterant_episodes=$((++session_iterant_episodes));
+				fi
+		done < "$session_iterant"
+
+		echo '	<a href="http://mov.ez/cgi-bin/attach?session='"$session_iterant"'&drive='"$device_path"'">';
+		echo '		<div class="sessions rounded-box neu_inset">';
+		echo '			<div class="session-name">';
+		echo '				<h2>'"$session_iterant"'</h2>';
+		echo '			</div>';
+		echo '			<div class="session-movies">';
+		echo '				<h2><span style="color: #9ec930; background-color: #be8534; padding: 10px;">'"$session_iterant_movies"'</span> MOVIES</h2>';
+		echo '			</div>';
+		echo '			<div class="session-episodes">';
+		echo '				<h2><span style="color: #9ec930; background-color: #be8534; padding: 10px;">'"$session_iterant_episodes"'</span> EPISODES</h2>';
+		echo '			</div>';
+		echo '		</div>';
+		echo '	</a>';
+done
+
+echo '	<div style="height: 100px;">';
+echo '		<!--empty spacer-->';
+echo '	</div>';
+echo '</body>';
+echo '</html>';

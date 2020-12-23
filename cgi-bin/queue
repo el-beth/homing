@@ -1,0 +1,52 @@
+#!/bin/bash
+
+printf "Content-type: text/html\n\n"
+
+hash="$(sed -E 's/^([^&]+)&session=([^$]+)$/\1/g' <<< "$QUERY_STRING")";
+session="$(sed -E 's/^([^&]+)&session=([^$]+)$/\2/g' <<< "$QUERY_STRING")";
+
+if ([ -z "$hash" ] || [ -z "$session" ])
+	then
+		echo '<html><head></head><body style="padding: 0px; margin: 0px; background-color: red;"></body></html>' && exit 1;
+fi
+
+if ( ! egrep -qie '^[a-z0-9]{32}$' <<< "$hash" )
+	then
+		echo '<html><head></head><body style="padding: 0px; margin: 0px; background-color: red;"></body></html>' && exit 4;
+fi
+
+if [ -e "/var/www/sessions/$session" ]
+	then
+		if ( ! egrep -q "$hash" "/var/www/sessions/$session")
+			then
+				echo "$hash" >> "/var/www/sessions/$session";
+				if ( ! grep -q "$hash" "/var/www/sessions/$session" )
+					then
+						echo '<html><head></head><body style="padding: 0px; margin: 0px; background-color: red;"></body></html>' && exit 2;
+				fi
+		fi
+		
+	else
+		touch "/var/www/sessions/$session";
+		if [ ! -e "/var/www/sessions/$session" ]
+			then
+				echo "error: # queue # couldn't create session $session";
+			else
+				if ( ! egrep -q "$hash" "/var/www/sessions/$session")
+					then
+						echo "$hash" >> "/var/www/sessions/$session";
+						if ( ! grep -q "$hash" "/var/www/sessions/$session" )
+							then
+								echo "error: # queue # couldn't queue $hash in session file $session" && exit 3;
+						fi
+				fi
+				
+		fi
+fi
+
+if ( egrep -q "$hash" "/var/www/sessions/$session" )
+	then
+		echo '<html><head></head><body style="padding: 0px; margin: 0px; background-color: green;"></body></html>';
+	else
+		echo '<html><head></head><body style="padding: 0px; margin: 0px; background-color: red;"></body></html>';
+fi

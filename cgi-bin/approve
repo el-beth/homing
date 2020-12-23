@@ -1,0 +1,28 @@
+#!/bin/bash
+
+session=$(sed -E 's/^session=([^$&;]+)/\1/gi' <<< "$QUERY_STRING");
+
+if ([ -z "$session" ] || [ ! -e "/var/www/sessions/$session" ])
+	then
+		echo 'error: # approve # couldnt extract session or session not existent'
+		exit 1;
+fi
+
+sessions_pending="/var/www/sessions_pending";
+sessions_authorised="/var/www/sessions_approved";
+
+if [ "$REMOTE_ADDR" == "127.0.0.1" ]
+	then
+		mv "$sessions_pending/$session" "$sessions_authorised/$session"
+fi
+
+echo 'Content-type: text/html';
+echo -e "\n\n";
+
+echo '<html>';
+echo '	<head>';
+echo '		<meta http-equiv="Refresh" content="0.1; url=http://adm.in/cgi-bin/admin"/>';
+echo '	</head>';
+echo '	<body>';
+echo '	</body>';
+echo '</html>';
